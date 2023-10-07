@@ -8,11 +8,17 @@ public class CharacterMovement : MonoBehaviour
     Vector3 playerVelocity;
     Vector3 move;
 
+    private bool hasBlueOrb = false;
+
     public float walkSpeed = 5;
-    public float runSpeed = 8; 
+    public float runSpeed = 8;
     public float jumpHeight = 2;
     public float gravity = -9.18f;
-    
+
+    private int jumpCount = 0;
+    public int maxJumpCount = 2; // Adjust this value to allow more or fewer double jumps if needed.
+
+
     private CharacterController controller;
     private Animator animator;
 
@@ -28,25 +34,65 @@ public class CharacterMovement : MonoBehaviour
         ProcessGravity();
     }
 
+    public void CollectBlueOrb()
+    {
+        hasBlueOrb = true; // Called when the player collects a blue orb.
+    }
+
+    public bool HasBlueOrb()
+    {
+        return hasBlueOrb; // Check if the player has a blue orb.
+    }
+
+
     public void LateUpdate()
     {
-       UpdateAnimator();
+        UpdateAnimator();
     }
 
     void DisableRootMotion()
     {
-        animator.applyRootMotion = false;  
+        animator.applyRootMotion = false;
     }
 
     void UpdateAnimator()
     {
-        bool isGrounded = controller.isGrounded; 
-        // TODO 
-        
+        bool isGrounded = controller.isGrounded;
+
+        animator.SetBool("Jump", !isGrounded && jumpCount > 0);
+        animator.SetBool("DoubleJump", false); // Reset DoubleJump animation.
+
+        if (!isGrounded)
+        {
+            if (jumpCount == 1 && !hasBlueOrb)
+            {
+                animator.SetBool("DoubleJump", true); // Play DoubleJump animation for a legitimate double jump.
+            }
+        }
+
+        if (move != Vector3.zero)
+        {
+            if (GetMovementSpeed() == runSpeed)
+            {
+                animator.SetFloat("Speed", 1.0f);
+            }
+            else
+            {
+                animator.SetFloat("Speed", 0.5f);
+            }
+        }
+        else
+        {
+            animator.SetFloat("Speed", 0.0f);
+        }
+
+        animator.SetBool("isGrounded", isGrounded);
     }
 
+
+
     void ProcessMovement()
-    { 
+    {
         move = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
         if (move != Vector3.zero)
         {
@@ -57,28 +103,39 @@ public class CharacterMovement : MonoBehaviour
     public void ProcessGravity()
     {
         bool isGrounded = controller.isGrounded;
-        // Since there is no physics applied on character controller we have this applies to reapply gravity
-        
-        if (isGrounded  )
+
+        if (isGrounded)
         {
-            if (playerVelocity.y < 0.0f) // we want to make sure the players stays grounded when on the ground
+            jumpCount = 0; // Reset jump count when grounded.
+
+            if (playerVelocity.y < 0.0f)
             {
                 playerVelocity.y = -1.0f;
             }
-            
-            if (Input.GetButtonDown("Jump")) // Code to jump
+
+            if (Input.GetButtonDown("Jump"))
             {
-                playerVelocity.y +=  Mathf.Sqrt(jumpHeight * -3.0f * gravity);
+                playerVelocity.y += Mathf.Sqrt(jumpHeight * -3.0f * gravity);
+                jumpCount++;
             }
         }
-        else // if not grounded
+        else
         {
+            // Check for double jump if the player has a blue orb.
+            if (Input.GetButtonDown("Jump") && jumpCount < maxJumpCount && hasBlueOrb)
+            {
+                playerVelocity.y = Mathf.Sqrt(jumpHeight * -3.0f * gravity);
+                jumpCount++;
+                hasBlueOrb = false; // Consume the blue orb.
+            }
+
             playerVelocity.y += gravity * Time.deltaTime;
-        }       
+        }
 
         controller.Move(move * Time.deltaTime * GetMovementSpeed() + playerVelocity * Time.deltaTime);
-        
     }
+
+
 
     float GetMovementSpeed()
     {
